@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, PanResponder, Animated } from 'react-native';
-import {
-  PinchGestureHandler,
-  GestureHandlerRootView,
-} from 'react-native-gesture-handler';
-
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, Image, FlatList, TouchableOpacity, PanResponder, Animated, Alert } from 'react-native';
+import { PinchGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from './model/mode';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ViewShot from 'react-native-view-shot';
 
+import { RootStackParamList } from './model/mode';
+import IconItem from '../src/component/IconItem';
 
 interface IconType {
   id: string;
@@ -23,12 +22,15 @@ type DetailsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList,
 const CreateCard = () => {
   const navigation = useNavigation<DetailsScreenNavigationProp>();
   const [topIcons, setTopIcons] = useState<IconType[]>([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedIcons, setSelectedIcons] = useState<string[]>([]); // State lưu trữ các icon đã chọn
+  const viewShotRef = useRef<ViewShot | null>(null);
 
-  function handleAddIcon(icon: Omit<IconType, 'scale'>) {
+  useEffect(() => {
+    loadIcons();
+  }, []);
+
+  const handleAddIcon = (icon: Omit<IconType, 'scale'>) => {
     setTopIcons([...topIcons, { ...icon, scale: new Animated.Value(1) }]);
-  }
+  };
 
   const updateIconPosition = (index: number, x: number, y: number) => {
     const updatedIcons = [...topIcons];
@@ -48,11 +50,9 @@ const CreateCard = () => {
 
     return (
       <PinchGestureHandler
-        onGestureEvent={Animated.event([
-          { nativeEvent: { scale: icon.scale } },
-        ], { useNativeDriver: false })}
+        onGestureEvent={Animated.event([{ nativeEvent: { scale: icon.scale } }], { useNativeDriver: false })}
         onHandlerStateChange={(event) => {
-          if (event.nativeEvent.oldState === 4) { // End of gesture
+          if (event.nativeEvent.oldState === 4) {
             icon.scale.setValue(Math.max(0.5, Math.min(event.nativeEvent.scale, 3)));
           }
         }}
@@ -74,97 +74,60 @@ const CreateCard = () => {
     );
   };
 
-  function handlePress(boldText: string): void {
-    throw new Error('Function not implemented.');
-  }
+  const saveView = async () => {
+    if (viewShotRef.current) {
+      try {
+        const uri = await viewShotRef.current.capture();
+        await AsyncStorage.setItem('viewShotUri', uri);
+        Alert.alert('Thành công', 'Ảnh của View đã được lưu.');
+        navigation.navigate('CardScreen'); // Chuyển đến CardScreen sau khi lưu
+      } catch (error) {
+        Alert.alert('Lỗi', 'Không thể chụp View.');
+        console.error(error);
+      }
+    } else {
+      Alert.alert('Lỗi', 'viewShotRef hiện đang là undefined.');
+    }
+  };
+
+  const loadIcons = async () => {
+    try {
+      const savedIcons = await AsyncStorage.getItem('icons');
+      if (savedIcons) {
+        const parsedIcons = JSON.parse(savedIcons);
+        const recreatedIcons = parsedIcons.map((icon: any) => ({
+          ...icon,
+          scale: new Animated.Value(icon.scale as number), // Sửa lỗi này bằng cách ép kiểu giá trị scale về số
+        }));
+        setTopIcons(recreatedIcons);
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể tải dữ liệu biểu tượng.');
+      console.error(error);
+    }
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <View style={styles.containerTop}>
-         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}> 
-            <Image
-              style={styles.backIcon}
-              source={require('./image/back.png')}
-              >
-            </Image> 
-
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Image style={styles.backIcon} source={require('./image/back.png')} />
           </TouchableOpacity>
-          <TouchableOpacity style ={styles.savebtn}>
-              <Image
-                style={styles.backIcon}
-                source={require('./image/check.png')}
-                >
-              </Image> 
+          <TouchableOpacity style={styles.savebtn} onPress={saveView}>
+            <Image style={styles.backIcon} source={require('./image/save.png')} />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.layoutContainerTop}>
+        <ViewShot ref={viewShotRef} style={styles.layoutContainerTop}>
           {topIcons.map((icon, index) => renderIconOnTop(icon, index))}
-        </View>
-
-        <View style={styles.spacer}>
-        <FlatList
-          data={[
-            { id: '1', boldText: 'Sticker' },
-            { id: '2', boldText: 'Color BG' },
-            { id: '3', boldText: 'Image' },
-            { id: '4', boldText: 'Font' },
-          ]}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.itemContainer,
-                {
-                  backgroundColor:
-                    item.boldText === 'Sticker' && modalVisible ? '#ADD8E6' : 'transparent',
-                },
-                {
-                  borderWidth: item.boldText === 'Sticker' && modalVisible ? 2 : 0,
-                },
-                {
-                  borderColor:
-                    item.boldText === 'Sticker' && modalVisible ? '#0000FF' : 'transparent',
-                },
-              ]}
-              onPress={() => handlePress(item.boldText)} // Pass tên icon vào hàm handlePress
-            >
-              <Text style={styles.itemboldText}>{item.boldText}</Text>
-            </TouchableOpacity>
-          )}
-          horizontal
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      </View>
-
-
+        </ViewShot>
         <View style={styles.layoutContainerBottom}>
           <FlatList
-            data={[
-              { id: '1', image: require('./image/create/tree.png') },
-              { id: '2', image: require('./image/create/cookiewithwhite.png') },
-              { id: '3', image: require('./image/create/candy.png') },
-              { id: '4', image: require('./image/create/cookie.png') },
-              { id: '5', image: require('./image/create/cristmas.png') },
-              { id: '6', image: require('./image/create/gingerbread.png') },
-              { id: '7', image: require('./image/create/glove.png') },
-              { id: '8', image: require('./image/create/Group2.png') },
-              { id: '9', image: require('./image/create/Group16.png') },
-              { id: '10', image: require('./image/create/PinkChristmas.png') },
-              { id: '11', image: require('./image/create/shopping.png') },
-              { id: '12', image: require('./image/create/snowman.png') },
-              { id: '13', image: require('./image/create/Pink.png') },
-              { id: '14', image: require('./image/create/treeangel.png') },
-              { id: '15', image: require('./image/create/Yellow.png') },
-              { id: '16', image: require('./image/create/Businesswoman.png') },
-            ]}
+            data={IconItem}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <TouchableOpacity
-                onPress={() =>
-                  handleAddIcon({ id: item.id, image: item.image, x: 100, y: 100 })
-                }
+                onPress={() => handleAddIcon({ id: item.id, image: item.image, x: 100, y: 100 })}
               >
                 <Image source={item.image} style={styles.imageItem} />
               </TouchableOpacity>
@@ -177,34 +140,32 @@ const CreateCard = () => {
   );
 };
 
+export default CreateCard;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
     padding: 20,
   },
-  savebtn:{
-    position: 'absolute', // Đặt vị trí tuyệt đối
-    top: 0,             // Khoảng cách từ đỉnh màn hình
-    right: 10,             // Khoảng cách từ trái màn hình
-    zIndex: 10,           // Hiển thị trên các thành phần khc
-    padding: 5,           // Thêm padding để dễ nhấn
+  savebtn: {
+    position: 'absolute',
+    top: 0,
+    right: 10,
+    zIndex: 10,
+    padding: 5,
   },
   backButton: {
-    position: 'absolute', // Đặt vị trí tuyệt đối
-    top: 0,             // Khoảng cách từ đỉnh màn hình
-    left: 10,             // Khoảng cách từ trái màn hình
-    zIndex: 10,           // Hiển thị trên các thành phần khc
-    padding: 5,           // Thêm padding để dễ nhấn
+    position: 'absolute',
+    top: 0,
+    left: 10,
+    zIndex: 10,
+    padding: 5,
   },
   backIcon: {
-    width: 24,  // Chiều rộng ảnh
-    height: 24, // Chiều cao ảnh
-    resizeMode: 'contain', // Duy trì tỉ lệ của ảnh
-  },
-  itemboldText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
   },
   containerTop: {
     flexDirection: 'row',
@@ -212,26 +173,11 @@ const styles = StyleSheet.create({
   },
   layoutContainerTop: {
     flex: 5,
-    marginTop:30,
+    marginTop: 30,
     backgroundColor: '#DED2C1',
     borderRadius: 30,
     borderColor: '#2C5D2F',
     borderWidth: 1,
-  },
-  itemContainer: {
-    padding: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 5,
-  },
-
-  spacer: {
-    flex: 0.5,
-    backgroundColor: '#fff',
-    borderColor: '#2C5D2F',
-    borderWidth: 1,
-    borderRadius: 30,
   },
   layoutContainerBottom: {
     flex: 3,
@@ -241,26 +187,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 10,
   },
-  containerImage: {
-    width: 20,
-    height: 20,
-  },
   imageItem: {
     width: 50,
     height: 50,
     resizeMode: 'contain',
     margin: 10,
-    left:10
   },
   iconImage: {
     width: 60,
     height: 60,
     resizeMode: 'contain',
   },
-  separator: {
-    width: 10,
-  },
-
 });
-
-export default CreateCard;
