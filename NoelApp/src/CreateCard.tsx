@@ -78,9 +78,22 @@ const CreateCard = () => {
     if (viewShotRef.current) {
       try {
         const uri = await viewShotRef.current.capture();
-        await AsyncStorage.setItem('viewShotUri', uri);
-        Alert.alert('Thành công', 'Ảnh của View đã được lưu.');
-        navigation.navigate('CardScreen'); // Chuyển đến CardScreen sau khi lưu
+  
+        // Thêm timestamp để làm ID duy nhất
+        const newCard = { id: new Date().getTime().toString(), uri };
+  
+        // Lấy danh sách cũ
+        const savedCards = await AsyncStorage.getItem('savedCards');
+        const cards = savedCards ? JSON.parse(savedCards) : [];
+  
+        // Thêm card mới vào danh sách
+        cards.push(newCard);
+  
+        // Lưu lại vào AsyncStorage
+        await AsyncStorage.setItem('savedCards', JSON.stringify(cards));
+  
+        Alert.alert('Thành công', 'Card đã được lưu.');
+        navigation.navigate('CardScreen'); // Điều hướng
       } catch (error) {
         Alert.alert('Lỗi', 'Không thể chụp View.');
         console.error(error);
@@ -89,23 +102,20 @@ const CreateCard = () => {
       Alert.alert('Lỗi', 'viewShotRef hiện đang là undefined.');
     }
   };
-
+  
   const loadIcons = async () => {
     try {
-      const savedIcons = await AsyncStorage.getItem('icons');
-      if (savedIcons) {
-        const parsedIcons = JSON.parse(savedIcons);
-        const recreatedIcons = parsedIcons.map((icon: any) => ({
-          ...icon,
-          scale: new Animated.Value(icon.scale as number), // Sửa lỗi này bằng cách ép kiểu giá trị scale về số
-        }));
-        setTopIcons(recreatedIcons);
+      const savedCards = await AsyncStorage.getItem('savedCards');
+      if (savedCards) {
+        const parsedCards = JSON.parse(savedCards);
+        console.log('Danh sách cards:', parsedCards); // Debugging
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể tải dữ liệu biểu tượng.');
+      Alert.alert('Lỗi', 'Không thể tải danh sách cards.');
       console.error(error);
     }
   };
+  
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -171,6 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  
   layoutContainerTop: {
     flex: 5,
     marginTop: 30,

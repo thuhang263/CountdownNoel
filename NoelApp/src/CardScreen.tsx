@@ -19,28 +19,36 @@ const CardScreen = () => {
   const [viewShotUri, setViewShotUri] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadViewShotUri = async () => {
+    const loadSavedCards = async () => {
       try {
-        const uri = await AsyncStorage.getItem('viewShotUri');
-        if (uri) {
-          setViewShotUri(uri);
+        const savedCards = await AsyncStorage.getItem('savedCards');
+        if (savedCards) {
+          const parsedCards = JSON.parse(savedCards); // Danh sách card đã lưu
+          // Thêm các card đã lưu vào danh sách hiển thị
+          const savedCardsData = parsedCards.map((card: { id: string; uri: string }) => ({
+            id: card.id,
+            image: { uri: card.uri },
+            screen: 'ScreenCard',
+          }));
+          setFlatListData((prevData) => [...prevData, ...savedCardsData]); // Gộp dữ liệu cũ và mới
         }
       } catch (error) {
-        console.error('Failed to load view shot URI', error);
+        console.error('Failed to load saved cards', error);
       }
     };
-
-    loadViewShotUri();
+  
+    loadSavedCards();
   }, []);
-
-  const flatListData: FlatListDataItem[] = [
+  
+  const [flatListData, setFlatListData] = useState<FlatListDataItem[]>([
     { id: '1', image: require('./image/Group3.png'), screen: 'ScreenCard' },
     { id: '2', image: require('./image/Group6.png'), screen: 'ScreenCard' },
     { id: '3', image: require('./image/Group4.png'), screen: 'ScreenCard' },
     { id: '4', image: require('./image/Group8.png'), screen: 'ScreenCard' },
     { id: '5', image: require('./image/Group9.png'), screen: 'ScreenCard' },
     { id: '6', image: require('./image/Group7.png'), screen: 'ScreenCard' },
-  ];
+  ]);
+  
 
   // Thêm ảnh mới lưu vào danh sách
   if (viewShotUri) {
